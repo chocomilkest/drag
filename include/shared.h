@@ -44,120 +44,121 @@ static const int PADDING_Y = 8;
 // RFC 3986
 // Turns '/home/user/My File.txt' into 'file:///home/user/My%20File.txt\r\n'
 char* CreateUriList(const char *path) {
-  if (!path) return NULL;
+    if (!path) return NULL;
 
-  size_t len = strlen(path);
-  char *output = malloc(len * 3 + 16); 
-  if (!output) return NULL;
+    size_t len = strlen(path);
+    void *output = malloc(len * 3 + 16); 
+    if (!output) return NULL;
 
-  char *p = output;
-  p += sprintf(p, "file://");
+    char *p = (char*)output;
+    p += sprintf(p, "file://");
 
-  if (path[0] != '/') *p++ = '/';
+    if (path[0] != '/') *p++ = '/';
 
-  for (const char *s = path; *s; s++) {
-    unsigned char c = (unsigned char)*s;
-    if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-        (c >= '0' && c <= '9') || c == '-' || c == '.' || 
-        c == '_' || c == '~' || c == '/') {
-      *p++ = c;
-    } else {
-      p += sprintf(p, "%%%02X", c);
+    for (const char *s = path; *s; s++) {
+        unsigned char c = (unsigned char)*s;
+        if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+                (c >= '0' && c <= '9') || c == '-' || c == '.' || 
+                c == '_' || c == '~' || c == '/') {
+            *p++ = c;
+        } else {
+            p += sprintf(p, "%%%02X", c);
+        }
     }
-  }
 
-  *p++ = '\r';
-  *p++ = '\n';
-  *p = '\0';
-  return output;
+    *p++ = '\r';
+    *p++ = '\n';
+    *p = '\0';
+    return (char*)output;
 }
 
 typedef struct {
-  char *uri;
-  char *name;
+    char *uri;
+    char *name;
 } FileInfo;
 
 void FileInfoFree(FileInfo *info) {
-  if (!info) return;
-  if (info->uri) free(info->uri);
-  if (info->name) free(info->name);
-  free(info);
+    if (!info) return;
+    if (info->uri) free(info->uri);
+    if (info->name) free(info->name);
+    free(info);
 }
 
 FileInfo* CommandLineArguments(int argc, char **argv) {
-  if (argc < 2) {
-    printf("Usage: %s <file_path>\n", argv[0]);
-    return NULL;
-  }
+    if (argc < 2) {
+        printf("Usage: %s <file_path>\n", argv[0]);
+        return NULL;
+    }
 
-  char *path = realpath(argv[1], NULL);
-  if (!path) {
-    LOG("Error resolving path %s", argv[1]);
-    return NULL;
-  }
-  defer { free(path); };
+    char *path = realpath(argv[1], NULL);
+    if (!path) {
+        LOG("Error resolving path %s", argv[1]);
+        return NULL;
+    }
 
-  char *uri = CreateUriList(path);
-  if (!uri) {
-    LOG("Error creating uri");
-    return NULL; 
-  }
-  defer { if (uri) free(uri); };
+    char *uri = CreateUriList(path);
+    if (!uri) {
+        LOG("Error creating uri");
+        return NULL; 
+    }
 
-  FileInfo *result = calloc(1, sizeof(FileInfo));
-  if (!result) {
-    LOG("Memory allocation failed");
-    return NULL; 
-  }
-  defer { if (result) FileInfoFree(result); };
+    FileInfo *result = (FileInfo*)calloc(1, sizeof(FileInfo));
+    if (!result) {
+        LOG("Memory allocation failed");
+        return NULL; 
+    }
 
-  result->uri = uri;
-  uri = NULL; 
+    result->uri = uri;
+    uri = NULL; 
 
-  char *name_ptr = strrchr(path, '/');
-  if (name_ptr) name_ptr++;
-  else name_ptr = path;
+    char *name_ptr = strrchr(path, '/');
+    if (name_ptr) name_ptr++;
+    else name_ptr = path;
 
-  result->name = strdup(name_ptr);
+    result->name = strdup(name_ptr);
 
-  if (!result->name) {
-    LOG("String duplication failed");
-    return NULL;
-  }
+    if (!result->name) {
+        LOG("String duplication failed");
+        return NULL;
+    }
 
-  LOG("Dragging: %s, Name: %s", result->uri, result->name);
+    LOG("Dragging: %s, Name: %s\n", result->uri, result->name);
  
-  FileInfo *retval = result;
-  result = NULL;
+    FileInfo *retval = result;
+    result = NULL;
 
-  return retval;
+    free(path);
+    if (uri) free(uri);
+    if (result) FileInfoFree(result);
+
+    return retval;
 }
 
 static void GetTextSize(const char *text, int *w, int *h) {
-  int len = strlen(text);
-  *w = (len * CHAR_W) + (PADDING_X * 2);
-  *h = CHAR_H + (PADDING_Y * 2);
+    int len = strlen(text);
+    *w = (len * CHAR_W) + (PADDING_X * 2);
+    *h = CHAR_H + (PADDING_Y * 2);
 }
 
 static void RenderTextToBuffer(const char *text, unsigned int *pixels, int w, int h) {
-  int len = strlen(text);
+    int len = strlen(text);
 
-  for (int i = 0; i < w * h; i++) {
-    pixels[i] = COLOR_BG;
-  }
-
-  for (int i = 0; i < len; i++) {
-    unsigned char c = (unsigned char)text[i];
-    for (int r = 0; r < 16; r++) { 
-      for (int col = 0; col < 8; col++) {
-        if (font8x16[c][r] & (0x80 >> col)) {
-          int x = PADDING_X + (i * CHAR_W) + col;
-          int y = PADDING_Y + r;
-          pixels[y * w + x] = 0xFFFFFFFF;
-        }
-      }
+    for (int i = 0; i < w * h; i++) {
+        pixels[i] = COLOR_BG;
     }
-  }
+
+    for (int i = 0; i < len; i++) {
+        unsigned char c = (unsigned char)text[i];
+        for (int r = 0; r < 16; r++) { 
+            for (int col = 0; col < 8; col++) {
+                if (font8x16[c][r] & (0x80 >> col)) {
+                    int x = PADDING_X + (i * CHAR_W) + col;
+                    int y = PADDING_Y + r;
+                    pixels[y * w + x] = 0xFFFFFFFF;
+                }
+            }
+        }
+    }
 }
 
 #endif // DRAG_SHARED_H
