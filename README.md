@@ -26,5 +26,5 @@ drag /path/to/your/file.png
 this fork focuses on supporting wayland primarily because its what i mostly use and familiar with :P
 changes i made:
 - [x] remove x11
-- [ ] multi-output support (currently popup gets stuck when cursor moves out of the output drag was opened in)
-- [ ] multi-file support (drag multiple files)
+- [x] multi-output support (currently popup gets stuck when cursor moves out of the output drag was opened in)
+- [x] multi-file support (drag multiple files)
