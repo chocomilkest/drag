@@ -28,14 +28,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 #include "macros.h"
 #define FONT8x16_IMPLEMENTATION
 #include "font8x16.h"
+#include <wayland-util.h>
 
 
 #define COLOR_BG   0xFF222222
 #define COLOR_TEXT 0xFFFFFFFF
+#define COLOR_BORDER 0xFF151515
 
+static const int BORDER_WIDTH = 3;
 static const int CHAR_W = 8;
 static const int CHAR_H = 16;
 static const int PADDING_X = 12;
@@ -75,6 +79,7 @@ char* CreateUriList(const char *path) {
 typedef struct {
     char *uri;
     char *name;
+    struct wl_list link;
 } FileInfo;
 
 void FileInfoFree(FileInfo *info) {
@@ -84,80 +89,98 @@ void FileInfoFree(FileInfo *info) {
     free(info);
 }
 
-FileInfo* CommandLineArguments(int argc, char **argv) {
+int CommandLineArguments(int argc, char **argv, struct wl_list *uris) {
     if (argc < 2) {
-        printf("Usage: %s <file_path>\n", argv[0]);
-        return NULL;
+        printf("Usage: %s [file_paths]\n", argv[0]);
+        return 1;
     }
 
-    char *path = realpath(argv[1], NULL);
-    if (!path) {
-        LOG("Error resolving path %s", argv[1]);
-        return NULL;
+    for (int i = 1; i < argc; i++) {
+        char *path = realpath(argv[i], NULL);
+        if (!path) {
+            LOG("Error resolving path %s", argv[i]);
+            return 1;
+        }
+
+        char *uri = CreateUriList(path);
+        if (!uri) {
+            LOG("Error creating uri");
+            return 1; 
+        }
+
+        FileInfo *result = (FileInfo*)calloc(1, sizeof(FileInfo));
+        if (!result) {
+            LOG("Memory allocation failed");
+            return 1; 
+        }
+
+        result->uri = uri;
+        uri = NULL; 
+
+        char *name_ptr = strrchr(path, '/');
+        if (name_ptr) name_ptr++;
+        else name_ptr = path;
+
+        result->name = strdup(name_ptr);
+
+        if (!result->name) {
+            LOG("String duplication failed");
+            return 1;
+        }
+
+        LOG("Adding name=%s uri=%s\n", result->name, result->uri);
+        wl_list_insert(uris, &result->link);
+        free(path);
     }
 
-    char *uri = CreateUriList(path);
-    if (!uri) {
-        LOG("Error creating uri");
-        return NULL; 
-    }
-
-    FileInfo *result = (FileInfo*)calloc(1, sizeof(FileInfo));
-    if (!result) {
-        LOG("Memory allocation failed");
-        return NULL; 
-    }
-
-    result->uri = uri;
-    uri = NULL; 
-
-    char *name_ptr = strrchr(path, '/');
-    if (name_ptr) name_ptr++;
-    else name_ptr = path;
-
-    result->name = strdup(name_ptr);
-
-    if (!result->name) {
-        LOG("String duplication failed");
-        return NULL;
-    }
-
-    LOG("Dragging: %s, Name: %s\n", result->uri, result->name);
- 
-    FileInfo *retval = result;
-    result = NULL;
-
-    free(path);
-    if (uri) free(uri);
-    if (result) FileInfoFree(result);
-
-    return retval;
+    return 0;
 }
 
-static void GetTextSize(const char *text, int *w, int *h) {
-    int len = strlen(text);
-    *w = (len * CHAR_W) + (PADDING_X * 2);
-    *h = CHAR_H + (PADDING_Y * 2);
-}
-
-static void RenderTextToBuffer(const char *text, unsigned int *pixels, int w, int h) {
-    int len = strlen(text);
-
-    for (int i = 0; i < w * h; i++) {
-        pixels[i] = COLOR_BG;
+static int GetFileListSize(struct wl_list *uris, int *w, int *h) {
+    size_t max_len = 0;
+    size_t lines = 0;
+    FileInfo *file;
+    wl_list_for_each(file, uris, link) {
+        size_t len = strlen(file->name);
+        if (len > max_len) max_len = len;
+        lines++;
     }
 
-    for (int i = 0; i < len; i++) {
-        unsigned char c = (unsigned char)text[i];
-        for (int r = 0; r < 16; r++) { 
-            for (int col = 0; col < 8; col++) {
-                if (font8x16[c][r] & (0x80 >> col)) {
-                    int x = PADDING_X + (i * CHAR_W) + col;
-                    int y = PADDING_Y + r;
-                    pixels[y * w + x] = 0xFFFFFFFF;
+    if (!lines || max_len > (INT_MAX - PADDING_X * 2) / CHAR_W ||
+            lines > (INT_MAX - PADDING_Y * 2) / CHAR_H) return 0;
+
+    *w = (int)max_len * CHAR_W + PADDING_X * 2;
+    *h = (int)lines * CHAR_H + PADDING_Y * 2;
+    return 1;
+}
+
+static void RenderFileListToBuffer(struct wl_list *uris, unsigned int *pixels, int w, int h) {
+    for (int y = 0; y < h; y++) {
+        for (int x = 0; x < w; x++) {
+            int border = x < BORDER_WIDTH || x >= w - BORDER_WIDTH ||
+                    y < BORDER_WIDTH || y >= h - BORDER_WIDTH;
+            pixels[(size_t)y * w + x] = border ? COLOR_BORDER : COLOR_BG;
+        }
+    }
+
+    int line = 0;
+    FileInfo *file;
+    wl_list_for_each(file, uris, link) {
+        int len = strlen(file->name);
+        for (int i = 0; i < len; i++) {
+            unsigned char c = (unsigned char)file->name[i];
+            if (c >= sizeof(font8x16) / sizeof(font8x16[0])) c = '?';
+            for (int r = 0; r < CHAR_H; r++) {
+                for (int col = 0; col < CHAR_W; col++) {
+                    if (font8x16[c][r] & (0x80 >> col)) {
+                        int x = PADDING_X + i * CHAR_W + col;
+                        int y = PADDING_Y + line * CHAR_H + r;
+                        pixels[(size_t)y * w + x] = COLOR_TEXT;
+                    }
                 }
             }
         }
+        line++;
     }
 }
 

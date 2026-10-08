@@ -21,4 +21,10 @@ drag /path/to/your/file.png
 1. Move your mouse slightly. A window will appear under your cursor displaying the file name.
 2. Drag (you have to keep your mouse clicked) and drop it into another application (browser, Discord, file manager, etc.).
 
+### about this fork
 
+this fork focuses on supporting wayland primarily because its what i mostly use and familiar with :P
+changes i made:
+- [x] remove x11
+- [ ] multi-output support (currently popup gets stuck when cursor moves out of the output drag was opened in)
+- [ ] multi-file support (drag multiple files)
