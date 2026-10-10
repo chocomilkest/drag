@@ -26,6 +26,12 @@ build/debug/%.o: $(SRC_FOLDER)%.c
 	@mkdir -p build/debug
 	$(CC) $(CFLAGS) $(DEBUG_CFLAGS) -Iinclude -c $< -o $@
 
+install:
+	cp drag /usr/local/bin/drag
+
+uninstall:
+	rm -f /usr/local/bin/drag
+
 clean:
 	rm -f *.o $(OBJS) $(DEBUG_OBJS)
 	rm -r build

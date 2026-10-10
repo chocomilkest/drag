@@ -28,3 +28,5 @@ changes i made:
 - [x] remove x11
 - [x] multi-output support (currently popup gets stuck when cursor moves out of the output drag was opened in)
 - [x] multi-file support (drag multiple files)
+- [ ] reorganize include folder
+- [ ] region to normal layer surface to be able to focus during non drag
