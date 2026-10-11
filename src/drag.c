@@ -656,8 +656,24 @@ int main(int argc, char **argv) {
         goto cleanup;
     }
 
-    state.cursor_theme = wl_cursor_theme_load(NULL, 24, state.shm);
+    const char *theme_name = getenv("XCURSOR_THEME");
+    if (!theme_name) {
+        theme_name = "default";
+    }
+
+    state.cursor_theme = wl_cursor_theme_load(theme_name, 24, state.shm);
     state.cross_cursor = wl_cursor_theme_get_cursor(state.cursor_theme, "crosshair");
+    // some themes use cross instead of crosshair
+    if (!state.cross_cursor) {
+        state.cross_cursor = wl_cursor_theme_get_cursor(state.cursor_theme, "cross");
+    }
+
+    // if still not found, stop running
+    if (!state.cross_cursor) {
+        printf("Couldn't find crosshair cursor icon. Make sure that you have XCURSOR_THEME set\n");
+        goto cleanup;
+    }
+
     state.cursor_surface = wl_compositor_create_surface(state.compositor);
 
     struct wl_buffer *icon_buf = GetOrDrawIcon(&state);
