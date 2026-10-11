@@ -400,6 +400,7 @@ static void pointer_motion(
         wl_fixed_to_int(x) + 15,
         wl_fixed_to_int(y) + 15
     );
+    wl_surface_commit(st->cur_output->icon_surface);
     wl_surface_commit(st->cur_output->surface);
 }
 static void pointer_button(
